@@ -63,7 +63,7 @@ export default function Dashboard() {
         {activeTab === 'home' && <HomeTab card={card} stats={stats} transactions={transactions} onTopUp={() => setShowTopUp(true)} />}
         {activeTab === 'history' && <TransactionList transactions={transactions} />}
         {activeTab === 'subscription' && <SubscriptionTab sub={subscription} card={card} apiFetch={apiFetch} onRefresh={loadData} />}
-        {activeTab === 'profile' && <ProfileTab user={user} card={card} />}
+        {activeTab === 'profile' && <ProfileTab user={user} card={card} apiFetch={apiFetch} />}
       </main>
 
       {showTopUp && <TopUpModal onClose={() => { setShowTopUp(false); loadData(); }} />}
@@ -251,21 +251,99 @@ function SubscriptionTab({ sub, card, apiFetch, onRefresh }) {
 
 // ─── Profile Tab ─────────────────────────────────────────────────────────────
 
-function ProfileTab({ user, card }) {
+function ProfileTab({ user, card, apiFetch }) {
   const initials = user?.fullName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
+  const [showPwForm, setShowPwForm] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
+  const [pwMsg, setPwMsg] = useState({ text: '', type: '' });
+  const [pwLoading, setPwLoading] = useState(false);
+
+  async function changePassword(e) {
+    e.preventDefault();
+    if (pwForm.newPw !== pwForm.confirm) {
+      setPwMsg({ text: 'New passwords do not match', type: 'error' });
+      return;
+    }
+    if (pwForm.newPw.length < 6) {
+      setPwMsg({ text: 'Password must be at least 6 characters', type: 'error' });
+      return;
+    }
+    setPwLoading(true);
+    setPwMsg({ text: '', type: '' });
+    try {
+      await apiFetch('/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.newPw })
+      });
+      setPwMsg({ text: 'Password changed successfully!', type: 'success' });
+      setPwForm({ current: '', newPw: '', confirm: '' });
+      setShowPwForm(false);
+    } catch (err) {
+      setPwMsg({ text: err.message, type: 'error' });
+    }
+    setPwLoading(false);
+  }
+
   return (
     <div>
       <h1 style={styles.pageTitle}>Profile</h1>
-      <div style={styles.profileCard}>
-        <div style={styles.profileAvatar}>{initials}</div>
-        <div style={styles.profileName}>{user?.fullName}</div>
-        <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 24 }}>Buscor Member</div>
-        {[['Email', user?.email], ['Phone', user?.phone], ['Card Number', card?.cardNumber], ['Card Status', card?.isActive ? 'Active' : 'Inactive'], ['Member Since', card?.issuedAt]].map(([l, v]) => (
-          <div key={l} style={styles.profileRow}>
-            <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{l}</span>
-            <span style={{ fontFamily: l === 'Card Number' ? 'var(--font-mono)' : 'inherit', fontSize: 13 }}>{v || '—'}</span>
-          </div>
-        ))}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 780 }}>
+
+        {/* Profile details card */}
+        <div style={styles.profileCard}>
+          <div style={styles.profileAvatar}>{initials}</div>
+          <div style={styles.profileName}>{user?.fullName}</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 24 }}>Buscor Member</div>
+          {[['Email', user?.email], ['Phone', user?.phone], ['Card Number', card?.cardNumber], ['Card Status', card?.isActive ? 'Active' : 'Inactive'], ['Member Since', card?.issuedAt]].map(([l, v]) => (
+            <div key={l} style={styles.profileRow}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{l}</span>
+              <span style={{ fontFamily: l === 'Card Number' ? 'var(--font-mono)' : 'inherit', fontSize: 13 }}>{v || '—'}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Password change card */}
+        <div style={styles.profileCard}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Security</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>Manage your password</div>
+
+          {pwMsg.text && (
+            <div style={{ ...styles.msgBox, background: pwMsg.type === 'success' ? 'rgba(45,204,110,0.1)' : 'rgba(232,64,28,0.1)', border: `1px solid ${pwMsg.type === 'success' ? 'rgba(45,204,110,0.3)' : 'rgba(232,64,28,0.3)'}`, color: pwMsg.type === 'success' ? '#2dcc6e' : '#f87a5e', marginBottom: 16 }}>
+              {pwMsg.text}
+            </div>
+          )}
+
+          {!showPwForm ? (
+            <button style={styles.changePwBtn} onClick={() => { setShowPwForm(true); setPwMsg({ text: '', type: '' }); }}>
+              Change Password
+            </button>
+          ) : (
+            <form onSubmit={changePassword}>
+              {[['Current password', 'current'], ['New password', 'newPw'], ['Confirm new password', 'confirm']].map(([label, key]) => (
+                <div key={key} style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
+                  <input
+                    type="password"
+                    style={styles.pwInput}
+                    value={pwForm[key]}
+                    onChange={e => setPwForm(f => ({ ...f, [key]: e.target.value }))}
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                <button type="submit" style={{ ...styles.changePwBtn, flex: 1 }} disabled={pwLoading}>
+                  {pwLoading ? 'Saving…' : 'Save Password'}
+                </button>
+                <button type="button" style={styles.cancelPwBtn} onClick={() => { setShowPwForm(false); setPwMsg({ text: '', type: '' }); }}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+
       </div>
     </div>
   );
@@ -357,5 +435,8 @@ const styles = {
   subBtnPopular: { background: 'linear-gradient(135deg,#E8401C,#F5893A)', border: 'none', color: '#fff' },
   subBtnActive: { background: 'rgba(45,204,110,0.1)', border: '1px solid rgba(45,204,110,0.3)', color: '#2dcc6e', cursor: 'default' },
   balanceNote: { fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', textAlign: 'center' },
-  balanceBar: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }
+  balanceBar: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' },
+  changePwBtn: { width: '100%', background: 'linear-gradient(135deg,#E8401C,#F5893A)', border: 'none', borderRadius: 8, padding: '10px', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  cancelPwBtn: { background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 16px', color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer' },
+  pwInput: { width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, outline: 'none' }
 };

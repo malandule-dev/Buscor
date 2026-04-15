@@ -48,7 +48,14 @@ const transactions = [
 ];
 
 const subscriptions = [
-  { id: 's1', cardId: 'c1', planName: 'Monthly Commuter Pass', monthlyAmount: 350.00, renewalDate: '2026-05-01', active: true }
+  { id: 's1', cardId: 'c1', planName: 'Monthly Commuter Pass', monthlyAmount: 350.00, renewalDate: '2026-05-01', active: true, planId: 'monthly' }
+];
+
+// Available plans catalogue
+const PLANS = [
+  { id: 'weekly',  name: 'Weekly Pass',        price: 89.00,  period: 'week',  description: 'Unlimited trips for 7 days', perks: ['Unlimited trips', 'Valid 7 days', 'All routes'] },
+  { id: 'monthly', name: 'Monthly Commuter',   price: 350.00, period: 'month', description: 'Best value for daily commuters', perks: ['Unlimited trips', 'Valid 30 days', 'All routes', 'Priority boarding'] },
+  { id: 'premium', name: 'Premium Pass',       price: 600.00, period: 'month', description: 'All routes + express services', perks: ['Unlimited trips', 'Valid 30 days', 'All routes', 'Express services', 'Lounge access'] },
 ];
 
 // ─── Middleware ──────────────────────────────────────────────────────────────
@@ -180,6 +187,91 @@ app.get('/stats', auth, (req, res) => {
   const totalLoaded = txs.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
   const tripCount   = txs.filter(t => t.type === 'debit').length;
   res.json({ totalSpent: Math.round(totalSpent * 100) / 100, totalLoaded: Math.round(totalLoaded * 100) / 100, tripCount });
+});
+
+// GET /plans — list available subscription plans
+app.get('/plans', auth, (req, res) => {
+  res.json(PLANS);
+});
+
+// POST /subscribe — subscribe to a plan
+app.post('/subscribe', auth, (req, res) => {
+  const { planId } = req.body;
+  const plan = PLANS.find(p => p.id === planId);
+  if (!plan) return res.status(400).json({ error: 'Invalid plan' });
+
+  const card = getCard(req.user.userId);
+  if (!card) return res.status(404).json({ error: 'Card not found' });
+
+  if (card.balance < plan.price) {
+    return res.status(402).json({ error: `Insufficient balance. You need R${plan.price.toFixed(2)} but have R${card.balance.toFixed(2)}` });
+  }
+
+  // Cancel any existing active subscription
+  subscriptions.forEach(s => { if (s.cardId === card.id) s.active = false; });
+
+  // Deduct from balance
+  card.balance = Math.round((card.balance - plan.price) * 100) / 100;
+
+  // Calculate renewal date
+  const renewal = new Date();
+  if (plan.period === 'week') renewal.setDate(renewal.getDate() + 7);
+  else renewal.setMonth(renewal.getMonth() + 1);
+  const renewalDate = renewal.toISOString().split('T')[0];
+
+  // Create subscription
+  const sub = {
+    id: uuidv4(),
+    cardId: card.id,
+    planId: plan.id,
+    planName: plan.name,
+    monthlyAmount: plan.price,
+    period: plan.period,
+    renewalDate,
+    active: true,
+    startedAt: new Date().toISOString()
+  };
+  subscriptions.push(sub);
+
+  // Log as transaction
+  transactions.push({
+    id: uuidv4(),
+    cardId: card.id,
+    type: 'debit',
+    amount: plan.price,
+    status: 'completed',
+    description: `Subscription: ${plan.name}`,
+    createdAt: new Date().toISOString()
+  });
+
+  res.json({ success: true, subscription: sub, newBalance: card.balance });
+});
+
+// POST /cancel-subscription — cancel active subscription
+app.post('/cancel-subscription', auth, (req, res) => {
+  const card = getCard(req.user.userId);
+  if (!card) return res.status(404).json({ error: 'Card not found' });
+
+  const sub = subscriptions.find(s => s.cardId === card.id && s.active);
+  if (!sub) return res.status(404).json({ error: 'No active subscription found' });
+
+  sub.active = false;
+  res.json({ success: true, message: 'Subscription cancelled successfully' });
+});
+
+// POST /change-password
+app.post('/change-password', auth, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const user = users.find(u => u.id === req.user.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!bcrypt.compareSync(currentPassword, user.passwordHash)) {
+    return res.status(401).json({ error: 'Current password is incorrect' });
+  }
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  }
+  user.passwordHash = bcrypt.hashSync(newPassword, 10);
+  res.json({ success: true, message: 'Password changed successfully' });
 });
 
 app.listen(PORT, () => console.log(`Buscor API running on http://localhost:${PORT}`));
