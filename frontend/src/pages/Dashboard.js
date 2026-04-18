@@ -41,6 +41,8 @@ export default function Dashboard() {
       alert(err.message);
     }
   }
+
+  async function takeTrip(route) {
     const d = await apiFetch('/trip', {
       method: 'POST',
       body: JSON.stringify({ route: route.name, fare: route.fare })
@@ -423,6 +425,34 @@ function ProfileTab({ user, card, apiFetch }) {
         </div>
 
       </div>
+
+      {/* QR Code card */}
+      {card && (
+        <div style={{ ...styles.profileCard, maxWidth: 780, marginTop: 20, textAlign: 'center' }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Smart Card QR Code</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>Scan this code at any Buscor terminal to board</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 32, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div style={{ background: '#fff', padding: 12, borderRadius: 12, display: 'inline-block' }}>
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=BUSCOR:${card.cardNumber.replace(/\s/g,'')}&color=0d0d0d&bgcolor=ffffff`}
+                alt="Card QR Code"
+                width={160}
+                height={160}
+                style={{ display: 'block', borderRadius: 4 }}
+              />
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Card Details</div>
+              <div style={{ fontSize: 13, marginBottom: 6 }}><span style={{ color: 'var(--text-muted)' }}>Number: </span><span style={{ fontFamily: 'var(--font-mono)' }}>{card.cardNumber}</span></div>
+              <div style={{ fontSize: 13, marginBottom: 6 }}><span style={{ color: 'var(--text-muted)' }}>Status: </span><span style={{ color: card.isActive ? '#2dcc6e' : '#7bb8f0' }}>{card.isActive ? 'Active' : 'Frozen'}</span></div>
+              <div style={{ fontSize: 13, marginBottom: 16 }}><span style={{ color: 'var(--text-muted)' }}>Holder: </span>{user?.fullName}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', maxWidth: 200, lineHeight: 1.6 }}>
+                This QR code is unique to your card. Do not share it with anyone.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
