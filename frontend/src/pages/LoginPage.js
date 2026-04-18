@@ -53,7 +53,7 @@ export default function LoginPage() {
           {mode === 'register' && (
             <>
               <Input label="Full Name" value={form.fullName} onChange={set('fullName')} placeholder="Michael Malandule" />
-              <Input label="Phone" type="tel" value={form.phone} onChange={set('phone')} placeholder="082 555 0101" />
+              <Input label="Phone" type="tel" inputMode="numeric" pattern="[0-9]*" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/[^0-9+\s]/g, '') }))} placeholder="0725335234" />
             </>
           )}
           <Input label="Email" type="email" value={form.email} onChange={set('email')} placeholder="you@example.com" />
