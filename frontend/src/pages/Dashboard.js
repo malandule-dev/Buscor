@@ -4,12 +4,15 @@ import TopUpModal from '../components/TopUpModal';
 import TransactionList from '../components/TransactionList';
 
 export default function Dashboard() {
-  const { user, card, logout, apiFetch } = useAuth();
+  const { user, card, logout, apiFetch, refreshCard } = useAuth();
   const [stats, setStats] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [subscription, setSubscription] = useState(null);
   const [showTopUp, setShowTopUp] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
+  const [card2, setCard] = useState(null);
+
+  useEffect(() => { if (card) setCard(card); }, [card]);
 
   useEffect(() => {
     loadData();
@@ -26,6 +29,24 @@ export default function Dashboard() {
       setTransactions(txs);
       setSubscription(subs[0] || null);
     } catch {}
+  }
+
+  async function freezeCard() {
+    const card = card2;
+    const action = card && !card.isActive ? 'unfreeze' : 'freeze';
+    try {
+      const d = await apiFetch('/freeze-card', { method: 'POST', body: JSON.stringify({ action }) });
+      setCard(c => ({ ...c, isActive: d.isActive }));
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+    const d = await apiFetch('/trip', {
+      method: 'POST',
+      body: JSON.stringify({ route: route.name, fare: route.fare })
+    });
+    setCard(c => ({ ...c, balance: d.newBalance }));
+    await loadData();
   }
 
   const initials = user?.fullName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
@@ -60,7 +81,7 @@ export default function Dashboard() {
 
       {/* Main */}
       <main style={styles.main}>
-        {activeTab === 'home' && <HomeTab card={card} stats={stats} transactions={transactions} onTopUp={() => setShowTopUp(true)} />}
+        {activeTab === 'home' && <HomeTab card={card2 || card} stats={stats} transactions={transactions} onTopUp={() => setShowTopUp(true)} onTrip={takeTrip} onFreeze={freezeCard} />}
         {activeTab === 'history' && <TransactionList transactions={transactions} />}
         {activeTab === 'subscription' && <SubscriptionTab sub={subscription} card={card} apiFetch={apiFetch} onRefresh={loadData} />}
         {activeTab === 'profile' && <ProfileTab user={user} card={card} apiFetch={apiFetch} />}
@@ -73,25 +94,82 @@ export default function Dashboard() {
 
 // ─── Home Tab ────────────────────────────────────────────────────────────────
 
-function HomeTab({ card, stats, transactions, onTopUp }) {
+function HomeTab({ card, stats, transactions, onTopUp, onTrip, onFreeze }) {
   const recent = transactions.slice(0, 5);
+  const [tripLoading, setTripLoading] = useState(false);
+  const [tripMsg, setTripMsg] = useState({ text: '', type: '' });
+
+  const ROUTES = [
+    { name: 'Route 1 — Pretoria CBD', fare: 12.50 },
+    { name: 'Route 2 — Sunnyside', fare: 14.50 },
+    { name: 'Route 3 — Hatfield', fare: 16.00 },
+    { name: 'Route 4 — Arcadia', fare: 18.00 },
+    { name: 'Route 5 — Centurion', fare: 22.00 },
+    { name: 'Route 6 — Menlyn', fare: 19.50 },
+    { name: 'Route 7 — Mamelodi', fare: 24.00 },
+  ];
+
+  async function takeTrip() {
+    if (!card || card.balance <= 0) {
+      setTripMsg({ text: 'Insufficient balance. Please top up first.', type: 'error' });
+      return;
+    }
+    setTripLoading(true);
+    setTripMsg({ text: '', type: '' });
+    const route = ROUTES[Math.floor(Math.random() * ROUTES.length)];
+    if (card.balance < route.fare) {
+      setTripMsg({ text: `Insufficient balance for ${route.name} (R${route.fare.toFixed(2)})`, type: 'error' });
+      setTripLoading(false);
+      return;
+    }
+    try {
+      await onTrip(route);
+      setTripMsg({ text: `Trip taken! ${route.name} — R${route.fare.toFixed(2)} deducted.`, type: 'success' });
+    } catch (err) {
+      setTripMsg({ text: err.message, type: 'error' });
+    }
+    setTripLoading(false);
+    setTimeout(() => setTripMsg({ text: '', type: '' }), 4000);
+  }
+
   return (
     <div>
       <h1 style={styles.pageTitle}>Dashboard</h1>
 
       {/* Balance card */}
-      <div style={styles.balanceCard}>
+      <div style={{ ...styles.balanceCard, ...(card && !card.isActive ? styles.balanceCardFrozen : {}) }}>
         <div style={styles.balCardBg} />
         <div style={{ position: 'relative' }}>
+          {card && !card.isActive && (
+            <div style={styles.frozenBanner}>❄ CARD FROZEN — Tap to unfreeze</div>
+          )}
           <div style={styles.balLabel}>Available Balance</div>
-          <div style={styles.balAmount}>
+          <div style={{ ...styles.balAmount, ...(card && !card.isActive ? { color: '#888', filter: 'blur(4px)' } : {}) }}>
             <span style={styles.balCurrency}>R</span>
             {card ? card.balance.toFixed(2) : '—'}
           </div>
           <div style={styles.balCardNum}>{card?.cardNumber || '•••• •••• •••• ••••'}</div>
-          <button style={styles.topUpBtn} onClick={onTopUp}>+ Top Up</button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
+            <button style={styles.topUpBtn} onClick={onTopUp} disabled={card && !card.isActive}>+ Top Up</button>
+            <button style={styles.tripBtn} onClick={takeTrip} disabled={tripLoading || (card && !card.isActive)}>
+              {tripLoading ? 'Boarding…' : '🚌 Take a Trip'}
+            </button>
+            <button
+              style={{ ...styles.freezeBtn, ...(card && !card.isActive ? styles.freezeBtnActive : {}) }}
+              onClick={onFreeze}
+            >
+              {card && !card.isActive ? '❄ Unfreeze Card' : '🔒 Freeze Card'}
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Trip message */}
+      {tripMsg.text && (
+        <div style={{ ...styles.tripMsg, background: tripMsg.type === 'success' ? 'rgba(45,204,110,0.1)' : 'rgba(232,64,28,0.1)', border: `1px solid ${tripMsg.type === 'success' ? 'rgba(45,204,110,0.3)' : 'rgba(232,64,28,0.3)'}`, color: tripMsg.type === 'success' ? '#2dcc6e' : '#f87a5e' }}>
+          {tripMsg.type === 'success' ? '✓ ' : '✗ '}{tripMsg.text}
+        </div>
+      )}
 
       {/* Stats row */}
       {stats && (
@@ -391,7 +469,12 @@ const styles = {
   balCurrency: { fontSize: 20, fontWeight: 400, color: 'var(--orange)', verticalAlign: 'super', marginRight: 2 },
   balCardNum: { fontFamily: 'var(--font-mono)', fontSize: 12, color: 'rgba(255,255,255,0.3)', letterSpacing: 3, marginBottom: 16 },
   topUpBtn: { background: 'linear-gradient(135deg, #E8401C, #F5893A)', border: 'none', borderRadius: 8, padding: '9px 18px', color: '#fff', fontSize: 13, fontWeight: 600 },
-  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 },
+  tripBtn: { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '9px 18px', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  tripMsg: { borderRadius: 10, padding: '12px 16px', fontSize: 13, marginBottom: 20 },
+  freezeBtn: { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '9px 18px', color: '#aaa', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  freezeBtnActive: { background: 'rgba(59,139,212,0.2)', border: '1px solid rgba(59,139,212,0.4)', color: '#7bb8f0' },
+  balanceCardFrozen: { background: 'linear-gradient(160deg, #0a0e1a, #101828)', border: '1px solid rgba(59,139,212,0.3)' },
+  frozenBanner: { background: 'rgba(59,139,212,0.15)', border: '1px solid rgba(59,139,212,0.3)', borderRadius: 8, padding: '6px 12px', fontSize: 11, color: '#7bb8f0', fontFamily: 'var(--font-mono)', letterSpacing: 1, marginBottom: 12, display: 'inline-block' },
   statCard: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', position: 'relative', overflow: 'hidden' },
   statDot: { width: 6, height: 6, borderRadius: '50%', marginBottom: 10 },
   statLabel: { fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6 },

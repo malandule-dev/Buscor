@@ -259,6 +259,39 @@ app.post('/cancel-subscription', auth, (req, res) => {
   res.json({ success: true, message: 'Subscription cancelled successfully' });
 });
 
+// POST /trip — simulate taking a bus trip
+app.post('/trip', auth, (req, res) => {
+  const { route, fare } = req.body;
+  const card = getCard(req.user.userId);
+  if (!card) return res.status(404).json({ error: 'Card not found' });
+  if (!card.isActive) return res.status(403).json({ error: 'Card is inactive' });
+  if (card.balance < fare) return res.status(402).json({ error: `Insufficient balance. You need R${fare.toFixed(2)} but have R${card.balance.toFixed(2)}` });
+
+  card.balance = Math.round((card.balance - fare) * 100) / 100;
+
+  const tx = {
+    id: uuidv4(),
+    cardId: card.id,
+    type: 'debit',
+    amount: fare,
+    status: 'completed',
+    description: route,
+    createdAt: new Date().toISOString()
+  };
+  transactions.push(tx);
+
+  res.json({ success: true, newBalance: card.balance, transaction: tx });
+});
+
+// POST /freeze-card — freeze or unfreeze card
+app.post('/freeze-card', auth, (req, res) => {
+  const { action } = req.body;
+  const card = getCard(req.user.userId);
+  if (!card) return res.status(404).json({ error: 'Card not found' });
+  card.isActive = action === 'unfreeze';
+  res.json({ success: true, isActive: card.isActive, message: `Card ${action}d successfully` });
+});
+
 // POST /change-password
 app.post('/change-password', auth, (req, res) => {
   const { currentPassword, newPassword } = req.body;
