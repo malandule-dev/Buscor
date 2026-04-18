@@ -1,10 +1,14 @@
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
+import DriverApp from './pages/DriverApp';
 import './index.css';
 
 function AppInner() {
   const { user, loading } = useAuth();
+  const isDriverApp = window.location.pathname === '/driver';
+
+  if (isDriverApp) return <DriverApp />;
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 14 }}>

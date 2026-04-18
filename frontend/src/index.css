@@ -35,6 +35,8 @@ a { text-decoration: none; color: inherit; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* Utility */
 .mono { font-family: var(--font-mono); }
 .orange { color: var(--orange); }
