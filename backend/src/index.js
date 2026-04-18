@@ -20,7 +20,7 @@ const users = [
     email: 'mike@demo.com',
     phone: '072 533 5234',
     passwordHash: bcrypt.hashSync('password123', 10),
-    createdAt: '2025-01-15'
+    createdAt: '2026-01-15'
   },
   {
     id: 'u2',
@@ -28,21 +28,21 @@ const users = [
     email: 'sipho@demo.com',
     phone: '073 222 0303',
     passwordHash: bcrypt.hashSync('password123', 10),
-    createdAt: '2025-03-20'
+    createdAt: '2026-03-20'
   }
 ];
 
 const cards = [
-  { id: 'c1', userId: 'u1', cardNumber: '4822 8800 1234 8821', balance: 247.50, isActive: true, issuedAt: '2025-01-16' },
-  { id: 'c2', userId: 'u2', cardNumber: '4822 8800 5678 3342', balance: 89.00, isActive: true, issuedAt: '2025-03-21' }
+  { id: 'c1', userId: 'u1', cardNumber: '4822 8800 7253 5234', balance: 347.50, isActive: true, issuedAt: '2026-01-15' },
+  { id: 'c2', userId: 'u2', cardNumber: '4822 8800 5678 3342', balance: 89.00, isActive: true, issuedAt: '2026-03-21' }
 ];
 
 const transactions = [
   { id: 't1', cardId: 'c1', type: 'debit',  amount: 14.50, status: 'completed', description: 'Route 4 — Pretoria CBD',    createdAt: new Date(Date.now() - 1*3600000).toISOString() },
-  { id: 't2', cardId: 'c1', type: 'credit', amount: 100.00, status: 'completed', description: 'Top-Up via SnapScan',       createdAt: new Date(Date.now() - 26*3600000).toISOString() },
+  { id: 't2', cardId: 'c1', type: 'credit', amount: 200.00, status: 'completed', description: 'Top-Up via SnapScan',      createdAt: new Date(Date.now() - 26*3600000).toISOString() },
   { id: 't3', cardId: 'c1', type: 'debit',  amount: 18.00, status: 'completed', description: 'Route 7 — Arcadia',         createdAt: new Date(Date.now() - 27*3600000).toISOString() },
-  { id: 't4', cardId: 'c1', type: 'debit',  amount: 14.50, status: 'completed', description: 'Route 4 — Pretoria CBD',    createdAt: new Date(Date.now() - 50*3600000).toISOString() },
-  { id: 't5', cardId: 'c1', type: 'credit', amount: 200.00, status: 'completed', description: 'Top-Up via Card',          createdAt: new Date(Date.now() - 75*3600000).toISOString() },
+  { id: 't4', cardId: 'c1', type: 'debit',  amount: 22.00, status: 'completed', description: 'Route 5 — Centurion',       createdAt: new Date(Date.now() - 50*3600000).toISOString() },
+  { id: 't5', cardId: 'c1', type: 'credit', amount: 500.00, status: 'completed', description: 'Top-Up via Card',          createdAt: new Date(Date.now() - 75*3600000).toISOString() },
   { id: 't6', cardId: 'c2', type: 'debit',  amount: 22.00, status: 'completed', description: 'Route 2 — Sunnyside',       createdAt: new Date(Date.now() - 2*3600000).toISOString() },
   { id: 't7', cardId: 'c2', type: 'credit', amount: 150.00, status: 'completed', description: 'Top-Up via EFT',           createdAt: new Date(Date.now() - 49*3600000).toISOString() }
 ];

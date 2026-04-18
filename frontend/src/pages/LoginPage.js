@@ -52,7 +52,7 @@ export default function LoginPage() {
         <form onSubmit={submit} style={styles.form}>
           {mode === 'register' && (
             <>
-              <Input label="Full Name" value={form.fullName} onChange={set('fullName')} placeholder="Thembi Dlamini" />
+              <Input label="Full Name" value={form.fullName} onChange={set('fullName')} placeholder="Michael Malandule" />
               <Input label="Phone" type="tel" value={form.phone} onChange={set('phone')} placeholder="082 555 0101" />
             </>
           )}
