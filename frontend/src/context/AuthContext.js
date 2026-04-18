@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 
-const API = 'http://localhost:4000';
+const API = 'https://buscor.onrender.com';
 const AuthCtx = createContext(null);
 
 export function AuthProvider({ children }) {
