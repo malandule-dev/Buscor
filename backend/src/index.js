@@ -16,9 +16,9 @@ app.use(express.json());
 const users = [
   {
     id: 'u1',
-    fullName: 'Thembi Dlamini',
-    email: 'thembi@demo.com',
-    phone: '082 555 0101',
+    fullName: 'Michael Malandule',
+    email: 'mike@demo.com',
+    phone: '072 533 5234',
     passwordHash: bcrypt.hashSync('password123', 10),
     createdAt: '2025-01-15'
   },

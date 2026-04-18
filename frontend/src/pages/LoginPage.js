@@ -69,7 +69,7 @@ export default function LoginPage() {
         {mode === 'login' && (
           <div style={styles.demoHint}>
             <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>Demo credentials: </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--orange)' }}>thembi@demo.com / password123</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--orange)' }}>mike@demo.com / password123</span>
           </div>
         )}
       </div>
