@@ -86,6 +86,7 @@ export default function Dashboard() {
         {activeTab === 'home' && <HomeTab card={card2 || card} stats={stats} transactions={transactions} onTopUp={() => setShowTopUp(true)} onTrip={takeTrip} onFreeze={freezeCard} />}
         {activeTab === 'history' && <TransactionList transactions={transactions} />}
         {activeTab === 'subscription' && <SubscriptionTab sub={subscription} card={card} apiFetch={apiFetch} onRefresh={loadData} />}
+        {activeTab === 'notifications' && <NotificationsTab card={card2 || card} subscription={subscription} apiFetch={apiFetch} />}
         {activeTab === 'profile' && <ProfileTab user={user} card={card} apiFetch={apiFetch} />}
       </main>
 
@@ -457,6 +458,106 @@ function ProfileTab({ user, card, apiFetch }) {
   );
 }
 
+// ─── Notifications Tab ───────────────────────────────────────────────────────
+
+function NotificationsTab({ card, subscription, apiFetch }) {
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    generateNotifications();
+  }, [card, subscription]);
+
+  function generateNotifications() {
+    const notifs = [];
+
+    // Low balance alert
+    if (card) {
+      if (card.balance === 0) {
+        notifs.push({ id: 'n1', type: 'danger', icon: '⚠', title: 'Zero Balance', message: 'Your card balance is R0.00. Top up now to continue using Buscor services.', time: 'Now', read: false });
+      } else if (card.balance < 20) {
+        notifs.push({ id: 'n2', type: 'warning', icon: '⚠', title: 'Low Balance Alert', message: `Your balance is running low (R${card.balance.toFixed(2)}). We recommend topping up to avoid service interruption.`, time: 'Just now', read: false });
+      } else if (card.balance < 50) {
+        notifs.push({ id: 'n3', type: 'warning', icon: '💳', title: 'Balance Reminder', message: `Your current balance is R${card.balance.toFixed(2)}. Consider topping up soon.`, time: '1 hour ago', read: false });
+      }
+
+      // Card status
+      if (!card.isActive) {
+        notifs.push({ id: 'n4', type: 'info', icon: '❄', title: 'Card Frozen', message: 'Your Buscor card is currently frozen. Visit the Dashboard to unfreeze it.', time: 'Recently', read: false });
+      }
+    }
+
+    // Subscription renewal reminder
+    if (subscription && subscription.active) {
+      const daysLeft = Math.ceil((new Date(subscription.renewalDate) - new Date()) / (1000 * 60 * 60 * 24));
+      if (daysLeft <= 7) {
+        notifs.push({ id: 'n5', type: 'warning', icon: '📅', title: 'Subscription Renewing Soon', message: `Your ${subscription.planName} renews in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} on ${subscription.renewalDate}. Ensure sufficient balance.`, time: 'Today', read: false });
+      } else {
+        notifs.push({ id: 'n6', type: 'success', icon: '✓', title: 'Subscription Active', message: `Your ${subscription.planName} is active and renews on ${subscription.renewalDate}.`, time: 'Today', read: true });
+      }
+    } else {
+      notifs.push({ id: 'n7', type: 'info', icon: '📅', title: 'No Active Subscription', message: 'You have no active subscription. Subscribe to a plan for unlimited travel benefits.', time: 'Today', read: true });
+    }
+
+    // Welcome / general
+    notifs.push({ id: 'n8', type: 'success', icon: '🎉', title: 'Welcome to Buscor', message: 'Your digital smart card is set up and ready to use. Tap "Take a Trip" to simulate your first journey!', time: 'When you joined', read: true });
+
+    setNotifications(notifs);
+    setLoading(false);
+  }
+
+  const unread = notifications.filter(n => !n.read).length;
+
+  const typeStyles = {
+    danger:  { bg: 'rgba(232,64,28,0.08)',  border: 'rgba(232,64,28,0.25)',  color: '#f87a5e',  dot: '#E8401C' },
+    warning: { bg: 'rgba(245,137,58,0.08)', border: 'rgba(245,137,58,0.25)', color: '#F5893A',  dot: '#F5893A' },
+    success: { bg: 'rgba(45,204,110,0.08)', border: 'rgba(45,204,110,0.25)', color: '#2dcc6e',  dot: '#2dcc6e' },
+    info:    { bg: 'rgba(59,139,212,0.08)', border: 'rgba(59,139,212,0.25)', color: '#7bb8f0',  dot: '#3B8BD4' },
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <h1 style={{ ...styles.pageTitle, marginBottom: 0 }}>Notifications</h1>
+        {unread > 0 && (
+          <span style={{ background: '#E8401C', borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600, color: '#fff', fontFamily: 'var(--font-mono)' }}>
+            {unread} new
+          </span>
+        )}
+      </div>
+
+      {loading ? (
+        <div style={styles.empty}>Loading notifications…</div>
+      ) : notifications.length === 0 ? (
+        <div style={styles.empty}>No notifications.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {notifications.map(n => {
+            const t = typeStyles[n.type] || typeStyles.info;
+            return (
+              <div key={n.id} style={{ background: t.bg, border: `1px solid ${t.border}`, borderRadius: 14, padding: '16px 20px', display: 'flex', gap: 16, alignItems: 'flex-start', opacity: n.read ? 0.7 : 1 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${t.dot}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                  {n.icon}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: t.color, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {n.title}
+                      {!n.read && <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.dot, display: 'inline-block' }} />}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>{n.time}</div>
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>{n.message}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(iso) {
@@ -473,6 +574,7 @@ const navItems = [
   { id: 'home', icon: '⬛', label: 'Dashboard' },
   { id: 'history', icon: '📋', label: 'Trip History' },
   { id: 'subscription', icon: '📅', label: 'Subscriptions' },
+  { id: 'notifications', icon: '🔔', label: 'Notifications' },
   { id: 'profile', icon: '👤', label: 'Profile' }
 ];
 
