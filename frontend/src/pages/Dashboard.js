@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import TopUpModal from '../components/TopUpModal';
 import TransactionList from '../components/TransactionList';
@@ -88,6 +88,7 @@ export default function Dashboard() {
         {activeTab === 'subscription' && <SubscriptionTab sub={subscription} card={card} apiFetch={apiFetch} onRefresh={loadData} />}
         {activeTab === 'notifications' && <NotificationsTab card={card2 || card} subscription={subscription} apiFetch={apiFetch} />}
         {activeTab === 'family' && <FamilyTab card={card2 || card} apiFetch={apiFetch} />}
+        {activeTab === 'routes' && <RoutePlannerTab card={card2 || card} />}
         {activeTab === 'profile' && <ProfileTab user={user} card={card} apiFetch={apiFetch} />}
       </main>
 
@@ -889,6 +890,212 @@ function FamilyTab({ card, apiFetch }) {
   );
 }
 
+// ─── Route Planner Tab ───────────────────────────────────────────────────────
+
+function RoutePlannerTab({ card }) {
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [selectedRoute, setSelectedRoute] = useState(null);
+  const [busStatuses, setBusStatuses] = useState({});
+  const mapRef = useRef(null);
+  const leafletMap = useRef(null);
+
+  const ROUTES = [
+    { id: 'r1', name: 'Route 1 — Pretoria CBD', fare: 12.50, duration: '25 min', stops: 8, from: 'Mamelodi', to: 'Pretoria CBD', coords: [[-25.7479, 28.3567], [-25.7312, 28.2871], [-25.7461, 28.1881]], color: '#E8401C', status: 'on-time' },
+    { id: 'r2', name: 'Route 2 — Sunnyside', fare: 14.50, duration: '18 min', stops: 6, from: 'Pretoria CBD', to: 'Sunnyside', coords: [[-25.7461, 28.1881], [-25.7520, 28.2050], [-25.7612, 28.2180]], color: '#F5893A', status: 'delayed' },
+    { id: 'r3', name: 'Route 3 — Hatfield', fare: 16.00, duration: '22 min', stops: 7, from: 'Pretoria CBD', to: 'Hatfield', coords: [[-25.7461, 28.1881], [-25.7580, 28.2350], [-25.7645, 28.2380]], color: '#3B8BD4', status: 'on-time' },
+    { id: 'r4', name: 'Route 4 — Arcadia', fare: 18.00, duration: '20 min', stops: 5, from: 'Pretoria CBD', to: 'Arcadia', coords: [[-25.7461, 28.1881], [-25.7420, 28.2100], [-25.7380, 28.2200]], color: '#2dcc6e', status: 'on-time' },
+    { id: 'r5', name: 'Route 5 — Centurion', fare: 22.00, duration: '35 min', stops: 12, from: 'Pretoria CBD', to: 'Centurion', coords: [[-25.7461, 28.1881], [-25.8200, 28.1800], [-25.8600, 28.1891]], color: '#9B59B6', status: 'delayed' },
+    { id: 'r6', name: 'Route 6 — Menlyn', fare: 19.50, duration: '28 min', stops: 9, from: 'Pretoria CBD', to: 'Menlyn', coords: [[-25.7461, 28.1881], [-25.7750, 28.2750], [-25.7834, 28.2769]], color: '#E67E22', status: 'on-time' },
+    { id: 'r7', name: 'Route 7 — Mamelodi', fare: 24.00, duration: '40 min', stops: 14, from: 'Pretoria CBD', to: 'Mamelodi', coords: [[-25.7461, 28.1881], [-25.7200, 28.3200], [-25.7479, 28.3567]], color: '#E8401C', status: 'on-time' },
+  ];
+
+  // Simulate live bus positions
+  useEffect(() => {
+    const statuses = {};
+    ROUTES.forEach(r => {
+      statuses[r.id] = {
+        status: r.status,
+        delay: r.status === 'delayed' ? Math.floor(Math.random() * 15) + 5 : 0,
+        nextArrival: Math.floor(Math.random() * 20) + 2,
+        busesActive: Math.floor(Math.random() * 3) + 1,
+        occupancy: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)],
+      };
+    });
+    setBusStatuses(statuses);
+  }, []);
+
+  // Load Leaflet map
+  useEffect(() => {
+    if (!mapRef.current || leafletMap.current) return;
+
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.onload = () => {
+      const L = window.L;
+      const map = L.map(mapRef.current, { zoomControl: true }).setView([-25.7461, 28.1881], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+      leafletMap.current = map;
+
+      // Draw all routes on map
+      ROUTES.forEach(r => {
+        const line = L.polyline(r.coords, { color: r.color, weight: 4, opacity: 0.7 }).addTo(map);
+        line.bindPopup(`<b>${r.name}</b><br>Fare: R${r.fare.toFixed(2)}<br>Duration: ${r.duration}`);
+
+        // Bus icon marker
+        const busIcon = L.divIcon({
+          html: `<div style="background:${r.color};color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)">🚌</div>`,
+          className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+        });
+        const midIdx = Math.floor(r.coords.length / 2);
+        L.marker(r.coords[midIdx], { icon: busIcon }).addTo(map)
+          .bindPopup(`<b>${r.name}</b><br>Status: ${r.status === 'on-time' ? '✅ On Time' : '⚠️ Delayed'}`);
+      });
+
+      // Pretoria CBD marker
+      const cbdIcon = L.divIcon({
+        html: `<div style="background:#fff;color:#E8401C;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid #E8401C;box-shadow:0 2px 6px rgba(0,0,0,0.3)">📍</div>`,
+        className: '', iconSize: [28, 28], iconAnchor: [14, 14]
+      });
+      L.marker([-25.7461, 28.1881], { icon: cbdIcon }).addTo(map).bindPopup('<b>Pretoria CBD Hub</b><br>Main bus terminal');
+    };
+    document.head.appendChild(script);
+  }, []);
+
+  // Highlight selected route on map
+  useEffect(() => {
+    if (!leafletMap.current || !selectedRoute) return;
+    const r = ROUTES.find(rt => rt.id === selectedRoute);
+    if (r) leafletMap.current.fitBounds(r.coords, { padding: [40, 40] });
+  }, [selectedRoute]);
+
+  const filtered = ROUTES.filter(r =>
+    (!from || r.from.toLowerCase().includes(from.toLowerCase()) || r.name.toLowerCase().includes(from.toLowerCase())) &&
+    (!to || r.to.toLowerCase().includes(to.toLowerCase()) || r.name.toLowerCase().includes(to.toLowerCase()))
+  );
+
+  const canAfford = r => card?.balance >= r.fare;
+
+  return (
+    <div>
+      <h1 style={styles.pageTitle}>Route Planner</h1>
+
+      {/* Search bar */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+        <div>
+          <div style={styles.statLabel}>From</div>
+          <input style={{ ...styles.pwInput, marginTop: 4 }} placeholder="e.g. Pretoria CBD, Mamelodi..." value={from} onChange={e => setFrom(e.target.value)} />
+        </div>
+        <div>
+          <div style={styles.statLabel}>To</div>
+          <input style={{ ...styles.pwInput, marginTop: 4 }} placeholder="e.g. Hatfield, Centurion..." value={to} onChange={e => setTo(e.target.value)} />
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 20 }}>
+
+        {/* Route list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 520, overflowY: 'auto' }}>
+          {filtered.length === 0 && (
+            <div style={styles.empty}>No routes found. Try different search terms.</div>
+          )}
+          {filtered.map(r => {
+            const st = busStatuses[r.id] || {};
+            const isSelected = selectedRoute === r.id;
+            const affordable = canAfford(r);
+            return (
+              <div key={r.id}
+                style={{ background: isSelected ? 'rgba(232,64,28,0.08)' : 'var(--bg2)', border: `1px solid ${isSelected ? 'rgba(232,64,28,0.4)' : 'var(--border)'}`, borderLeft: `4px solid ${r.color}`, borderRadius: 12, padding: '14px 16px', cursor: 'pointer', transition: 'all .15s' }}
+                onClick={() => setSelectedRoute(isSelected ? null : r.id)}>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>
+                  <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', padding: '2px 7px', borderRadius: 4, background: st.status === 'on-time' ? 'rgba(45,204,110,0.15)' : 'rgba(232,64,28,0.15)', color: st.status === 'on-time' ? '#2dcc6e' : '#f87a5e', border: `1px solid ${st.status === 'on-time' ? 'rgba(45,204,110,0.3)' : 'rgba(232,64,28,0.3)'}` }}>
+                    {st.status === 'on-time' ? '✓ ON TIME' : `⚠ +${st.delay}min`}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+                  <span>🕐 {r.duration}</span>
+                  <span>🚏 {r.stops} stops</span>
+                  <span>🚌 {st.busesActive} active</span>
+                  <span>👥 {st.occupancy}</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Next: <span style={{ color: r.color, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{st.nextArrival} min</span></span>
+                  <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: affordable ? r.color : '#f87a5e' }}>
+                    R{r.fare.toFixed(2)} {!affordable && '⚠'}
+                  </span>
+                </div>
+
+                {!affordable && (
+                  <div style={{ fontSize: 10, color: '#f87a5e', marginTop: 6, fontFamily: 'var(--font-mono)' }}>
+                    Insufficient balance — top up R{(r.fare - (card?.balance || 0)).toFixed(2)} more
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Map */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div ref={mapRef} style={{ height: 420, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--border)', background: '#1a1a2e' }} />
+
+          {/* Legend */}
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>ROUTE LEGEND</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {ROUTES.map(r => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--text-muted)' }}>
+                  <div style={{ width: 16, height: 4, borderRadius: 2, background: r.color }} />
+                  {r.name.split('—')[1]?.trim()}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Live status summary */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
+            <div style={styles.statCard}>
+              <div style={{ ...styles.statDot, background: '#2dcc6e' }} />
+              <div style={styles.statLabel}>On Time</div>
+              <div style={{ ...styles.statValue, color: '#2dcc6e', fontSize: 18 }}>
+                {Object.values(busStatuses).filter(s => s.status === 'on-time').length}
+              </div>
+              <div style={styles.statSub}>routes</div>
+            </div>
+            <div style={styles.statCard}>
+              <div style={{ ...styles.statDot, background: '#f87a5e' }} />
+              <div style={styles.statLabel}>Delayed</div>
+              <div style={{ ...styles.statValue, color: '#f87a5e', fontSize: 18 }}>
+                {Object.values(busStatuses).filter(s => s.status === 'delayed').length}
+              </div>
+              <div style={styles.statSub}>routes</div>
+            </div>
+            <div style={styles.statCard}>
+              <div style={{ ...styles.statDot, background: '#F5893A' }} />
+              <div style={styles.statLabel}>Active Buses</div>
+              <div style={{ ...styles.statValue, color: '#F5893A', fontSize: 18 }}>
+                {Object.values(busStatuses).reduce((s, b) => s + (b.busesActive || 0), 0)}
+              </div>
+              <div style={styles.statSub}>on road now</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(iso) {
@@ -907,6 +1114,7 @@ const navItems = [
   { id: 'subscription', icon: '📅', label: 'Subscriptions' },
   { id: 'notifications', icon: '🔔', label: 'Notifications' },
   { id: 'family', icon: '👨‍👩‍👧', label: 'Family Cards' },
+  { id: 'routes', icon: '🗺', label: 'Route Planner' },
   { id: 'analytics', icon: '📈', label: 'Admin Analytics' },
   { id: 'profile', icon: '👤', label: 'Profile' }
 ];
